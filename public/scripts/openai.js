@@ -201,6 +201,8 @@ function setOpenAIMessages(chat) {
     for (let i = chat.length - 1; i >= 0; i--) {
         let role = chat[j]['is_user'] ? 'user' : 'assistant';
         let content = chat[j]['mes'];
+        if (i == 0 && chat[j]['is_user']) { content += substituteParams(`\n[{{char}} must react to this new observation.]`) }
+        if (i == 0 && !chat[j]['is_user']) { content += substituteParams(`\n[{{char}} must continue post this plot-point.]`) }
 
         // 100% legal way to send a message as system
         if (chat[j].extra?.type === system_message_types.NARRATOR) {
@@ -345,7 +347,7 @@ async function prepareOpenAIMessages({ systemPrompt, name2, storyString, worldIn
     // todo: static value, maybe include in the initial context calculation
     const handler_instance = new TokenHandler(countTokens);
 
-    let new_chat_msg = { "role": "system", "content": "[Start a new chat]" };
+    let new_chat_msg = { "role": "system", "content": `[Start]` };
     let start_chat_count = handler_instance.count([new_chat_msg], true, 'start_chat');
     await delay(1);
     let total_count = handler_instance.count([prompt_msg], true, 'prompt') + start_chat_count;
@@ -366,9 +368,9 @@ async function prepareOpenAIMessages({ systemPrompt, name2, storyString, worldIn
             names = groupMembers.map(member => characters.find(c => c.avatar === member)).filter(x => x).map(x => x.name);
             names = names.join(', ')
         }
-        new_chat_msg.content = `[Start a new group chat. Group members: ${names}]`;
+        new_chat_msg.content = `[Take all this information into consideration and continue this RP with ${names} who apply this information to conspire toward ${name1}'s surreptitious pleasure.]`;
         let group_nudge = { "role": "system", "content": `[Write the next reply only as ${name2}]` };
-        openai_msgs.push(group_nudge);
+        //openai_msgs.push(group_nudge);
 
         // add a group nudge count
         let group_nudge_count = handler_instance.count([group_nudge], true, 'nudge');
@@ -512,7 +514,7 @@ function getSystemPrompt(systemPrompt, nsfw_toggle_prompt, enhance_definitions_p
             whole_prompt = [nsfw_toggle_prompt, prompt, enhance_definitions_prompt + "\n\n" + wiBefore, storyString, wiAfter, extensionPrompt];
         }
         else {
-            whole_prompt = [prompt, nsfw_toggle_prompt, enhance_definitions_prompt, "\n", wiBefore, storyString, wiAfter, extensionPrompt].filter(elem => elem);
+            whole_prompt = [prompt, enhance_definitions_prompt, "\n", wiBefore, storyString, wiAfter, extensionPrompt].filter(elem => elem);
         }
     }
     return whole_prompt;
@@ -695,7 +697,7 @@ async function sendOpenAIRequest(type, openai_msgs_tosend, signal) {
     const response = await fetch(generate_url, {
         method: 'POST',
         body: JSON.stringify(generate_data),
-        headers: getRequestHeaders(),
+        headers: { ...getRequestHeaders(), name: name2 },
         signal: signal,
     });
 
@@ -764,7 +766,7 @@ async function sendOpenAIRequest(type, openai_msgs_tosend, signal) {
 function getStreamingReply(getMessage, data) {
     if (oai_settings.chat_completion_source == chat_completion_sources.CLAUDE) {
         getMessage = data.completion || "";
-    } else{
+    } else {
         getMessage += data.choices[0]["delta"]["content"] || "";
     }
     return getMessage;
@@ -1468,7 +1470,7 @@ function onModelChange() {
 
     if ($(this).is('#model_claude_select')) {
         console.log('Claude model changed to', value);
-        oai_settings.claude_model  = value;
+        oai_settings.claude_model = value;
     }
 
     if ($(this).is('#model_windowai_select')) {

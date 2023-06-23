@@ -2863,7 +2863,7 @@ app.post("/deletepreset_openai", jsonParser, function (request, response) {
 });
 
 // Prompt Conversion script taken from RisuAI by @kwaroran (GPLv3).
-function convertClaudePrompt(messages) {
+function convertClaudePrompt(messages, name) {
     // Claude doesn't support message names, so we'll just add them to the message content.
     for (const message of messages) {
         if (message.name && message.role !== "system") {
@@ -2887,13 +2887,16 @@ function convertClaudePrompt(messages) {
                     prefix = "\n\nA: ";
                 } else if (v.name === "example_user") {
                     prefix = "\n\nH: ";
+                } else if (v.content.startsWith("JB:")) {
+                    prefix = "\n\n";
+                    v.content = v.content.slice(3);
                 } else {
                     prefix = "\n\nSystem: ";
                 }
                 break
         }
         return prefix + v.content;
-    }).join('') + '\n\nAssistant: ';
+    }).join('');
     return requestPrompt;
 }
 
@@ -2914,7 +2917,7 @@ async function sendClaudeRequest(request, response) {
             controller.abort();
         });
 
-        const requestPrompt = convertClaudePrompt(request.body.messages);
+        const requestPrompt = convertClaudePrompt(request.body.messages, request.body.name);
         console.log('Claude request:', requestPrompt);
 
         const generateResponse = await fetch(api_url + '/complete', {
@@ -2958,7 +2961,7 @@ async function sendClaudeRequest(request, response) {
 
             const generateResponseJson = await generateResponse.json();
             const responseText = generateResponseJson.completion;
-            console.log('Claude response:', responseText);
+            //console.log('Claude response:', responseText);
 
             // Wrap it back to OAI format
             const reply = { choices: [{ "message": { "content": responseText, } }] };

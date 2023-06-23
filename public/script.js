@@ -1336,14 +1336,20 @@ function scrollChatToBottom() {
 function substituteParams(content, _name1, _name2) {
     _name1 = _name1 ?? name1;
     _name2 = _name2 ?? name2;
+    let persona = '';
+
+    if (window["SillyTavern"].getContext().name2 != "SillyTavern System" && window["SillyTavern"].getContext().characterId) { persona = window["SillyTavern"].getContext().characters[window["SillyTavern"].getContext().characterId].personality }
+
     if (!content) {
         return ''
     }
 
+    content = content.replace(/^\[.*\]$/gi, '');
     content = content.replace(/{{user}}/gi, _name1);
     content = content.replace(/{{char}}/gi, _name2);
     content = content.replace(/<USER>/gi, _name1);
     content = content.replace(/<BOT>/gi, _name2);
+    content = content.replace(/{{persona}}/gi, persona);
     content = content.replace(/{{time}}/gi, moment().format('LT'));
     content = content.replace(/{{date}}/gi, moment().format('LL'));
     return content;
