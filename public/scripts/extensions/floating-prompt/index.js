@@ -18,8 +18,9 @@ const UPDATE_INTERVAL = 1000;
 const DEFAULT_DEPTH = 4;
 const DEFAULT_POSITION = 1;
 const DEFAULT_INTERVAL = 1;
+export var shouldWIAddPrompt = false;
 
-const metadata_keys = {
+export const metadata_keys = {
     prompt: 'note_prompt',
     interval: 'note_interval',
     depth: 'note_depth',
@@ -72,6 +73,12 @@ function setNotePositionCommand(_, text) {
     toastr.info("Author's Note position updated");
 }
 
+function updateSettings() {
+    saveSettingsDebounced();
+    loadSettings();
+    setFloatingPrompt();
+}
+
 const setMainPromptTokenCounterDebounced = debounce((value) => $('#extension_floating_prompt_token_counter').text(getTokenCount(value)), 1000);
 const setCharaPromptTokenCounterDebounced = debounce((value) => $('#extension_floating_chara_token_counter').text(getTokenCount(value)), 1000);
 const setDefaultPromptTokenCounterDebounced = debounce((value) => $('#extension_floating_default_token_counter').text(getTokenCount(value)), 1000);
@@ -79,12 +86,12 @@ const setDefaultPromptTokenCounterDebounced = debounce((value) => $('#extension_
 async function onExtensionFloatingPromptInput() {
     chat_metadata[metadata_keys.prompt] = $(this).val();
     setMainPromptTokenCounterDebounced(chat_metadata[metadata_keys.prompt]);
-    saveMetadataDebounced();
+    updateSettings();
 }
 
 async function onExtensionFloatingIntervalInput() {
     chat_metadata[metadata_keys.interval] = Number($(this).val());
-    saveMetadataDebounced();
+    updateSettings();
 }
 
 async function onExtensionFloatingDepthInput() {
@@ -96,12 +103,12 @@ async function onExtensionFloatingDepthInput() {
     }
 
     chat_metadata[metadata_keys.depth] = value;
-    saveMetadataDebounced();
+    updateSettings();
 }
 
 async function onExtensionFloatingPositionInput(e) {
     chat_metadata[metadata_keys.position] = e.target.value;
-    saveMetadataDebounced();
+    updateSettings();
 }
 
 function onExtensionFloatingCharaPromptInput() {
@@ -147,7 +154,7 @@ function onExtensionFloatingCharaPromptInput() {
         return;
     }
 
-    saveSettingsDebounced();
+    updateSettings();
 }
 
 function onExtensionFloatingCharaCheckboxChanged() {
@@ -157,14 +164,14 @@ function onExtensionFloatingCharaCheckboxChanged() {
     if (charaNote) {
         charaNote.useChara = value;
 
-        saveSettingsDebounced();
+        updateSettings();
     }
 }
 
 function onExtensionFloatingDefaultInput() {
     extension_settings.note.default = $(this).val();
     setDefaultPromptTokenCounterDebounced(extension_settings.note.default);
-    saveSettingsDebounced();
+    updateSettings();
 }
 
 function loadSettings() {
@@ -177,27 +184,34 @@ function loadSettings() {
     $('#extension_floating_depth').val(chat_metadata[metadata_keys.depth]);
     $(`input[name="extension_floating_position"][value="${chat_metadata[metadata_keys.position]}"]`).prop('checked', true);
 
-    if (extension_settings.note.chara) {
+    if (extension_settings.note.chara && getContext().characterId) {
         const charaNote = extension_settings.note.chara.find((e) => e.name === getCharaFilename());
 
         $('#extension_floating_chara').val(charaNote ? charaNote.prompt : '');
         $('#extension_use_floating_chara').prop('checked', charaNote ? charaNote.useChara : false);
+    } else {
+        $('#extension_floating_chara').val('');
+        $('#extension_use_floating_chara').prop('checked', false);
     }
 
     $('#extension_floating_default').val(extension_settings.note.default);
 }
 
-async function moduleWorker() {
+export function setFloatingPrompt() {
     const context = getContext();
-
     if (!context.groupId && context.characterId === undefined) {
         return;
     }
 
-    loadSettings();
-
     // take the count of messages
     let lastMessageNumber = Array.isArray(context.chat) && context.chat.length ? context.chat.filter(m => m.is_user).length : 0;
+
+    console.debug(`
+    setFloatingPrompt entered
+    ------
+    lastMessageNumber = ${lastMessageNumber}
+    metadata_keys.interval = ${chat_metadata[metadata_keys.interval]}
+    `)
 
     // interval 1 should be inserted no matter what
     if (chat_metadata[metadata_keys.interval] === 1) {
@@ -214,9 +228,10 @@ async function moduleWorker() {
         ? (lastMessageNumber % chat_metadata[metadata_keys.interval])
         : (chat_metadata[metadata_keys.interval] - lastMessageNumber);
     const shouldAddPrompt = messagesTillInsertion == 0;
+    shouldWIAddPrompt = shouldAddPrompt;
 
     let prompt = shouldAddPrompt ? $('#extension_floating_prompt').val() : '';
-    if (shouldAddPrompt && extension_settings.note.chara) {
+    if (shouldAddPrompt && extension_settings.note.chara && getContext().characterId) {
         const charaNote = extension_settings.note.chara.find((e) => e.name === getCharaFilename());
 
         // Only replace with the chara note if the user checked the box
@@ -224,7 +239,6 @@ async function moduleWorker() {
             prompt = charaNote.prompt;
         }
     }
-
     context.setExtensionPrompt(MODULE_NAME, prompt, chat_metadata[metadata_keys.position], chat_metadata[metadata_keys.depth]);
     $('#extension_floating_counter').text(shouldAddPrompt ? '0' : messagesTillInsertion);
 }
@@ -263,11 +277,18 @@ function onANMenuItemClick() {
 }
 
 function onChatChanged() {
+    loadSettings();
+    setFloatingPrompt();
+    const context = getContext();
+
+    // Disable the chara note if in a group
+    $('#extension_floating_chara').prop('disabled', context.groupId ? true : false);
+
     const tokenCounter1 = chat_metadata[metadata_keys.prompt] ? getTokenCount(chat_metadata[metadata_keys.prompt]) : 0;
     $('#extension_floating_prompt_token_counter').text(tokenCounter1);
 
     let tokenCounter2;
-    if (extension_settings.note.chara) {
+    if (extension_settings.note.chara && context.characterId) {
         const charaNote = extension_settings.note.chara.find((e) => e.name === getCharaFilename());
 
         if (charaNote) {
@@ -283,7 +304,10 @@ function onChatChanged() {
     $('#extension_floating_default_token_counter').text(tokenCounter3);
 }
 
-(function () {
+//for some reason exporting metadata_keys for WI usage caused this to throw errors
+//"accessing eventSource before initialization"
+//putting it on a 1ms Timeout solved this.
+setTimeout(function () {
     function addExtensionsSettings() {
         const settingsHtml = `
         <div id="floatingPrompt" class="drawer-content flexGap5">
@@ -335,13 +359,13 @@ function onChatChanged() {
                         <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
                     </div>
                     <div class="inline-drawer-content">
-                    <small>Will be automatically added as the author's note for this character.</small>
+                    <small>Will be automatically added as the author's note for this character. Will be used in groups, but can't be modified when a group chat is open.</small>
 
                         <textarea id="extension_floating_chara" class="text_pole" rows="8" maxlength="10000"
                         placeholder="Example:\n[Scenario: wacky adventures; Genre: romantic comedy; Style: verbose, creative]"></textarea>
                         <div class="extension_token_counter">Tokens: <span id="extension_floating_chara_token_counter">0</small></div>
 
-                        <label for="extension_use_floating_chara">
+                        <label class="checkbox_label" for="extension_use_floating_chara">
                             <input id="extension_use_floating_chara" type="checkbox" />
                         <span data-i18n="Use character author's note">Use character author's note</span>
                     </label>
@@ -392,11 +416,9 @@ function onChatChanged() {
     }
 
     addExtensionsSettings();
-    const wrapper = new ModuleWorkerWrapper(moduleWorker);
-    setInterval(wrapper.update.bind(wrapper), UPDATE_INTERVAL);
     registerSlashCommand('note', setNoteTextCommand, [], "<span class='monospace'>(text)</span> – sets an author's note for the currently selected chat", true, true);
     registerSlashCommand('depth', setNoteDepthCommand, [], "<span class='monospace'>(number)</span> – sets an author's note depth for in-chat positioning", true, true);
     registerSlashCommand('freq', setNoteIntervalCommand, ['interval'], "<span class='monospace'>(number)</span> – sets an author's note insertion frequency", true, true);
     registerSlashCommand('pos', setNotePositionCommand, ['position'], "(<span class='monospace'>chat</span> or <span class='monospace'>scenario</span>) – sets an author's note position", true, true);
     eventSource.on(event_types.CHAT_CHANGED, onChatChanged);
-})();
+}, 1);

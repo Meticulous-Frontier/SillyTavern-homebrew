@@ -20,6 +20,7 @@ import {
     system_message_types,
     replaceBiasMarkup,
     is_send_press,
+    main_api,
 } from "../script.js";
 import { groups, selected_group } from "./group-chats.js";
 
@@ -35,6 +36,7 @@ import {
 import {
     delay,
     download,
+    getFileText,
     getStringHash,
     parseJsonFile,
     stringFormat,
@@ -211,7 +213,7 @@ function setOpenAIMessages(chat) {
         }
 
         // for groups or sendas command - prepend a character's name
-        if (selected_group || chat[j].force_avatar) {
+        if (selected_group || (chat[j].force_avatar && chat[j].name !== name1)) {
             content = `${chat[j].name}: ${content}`;
         }
 
@@ -338,7 +340,7 @@ async function prepareOpenAIMessages({ systemPrompt, name2, storyString, worldIn
     let whole_prompt = getSystemPrompt(systemPrompt, nsfw_toggle_prompt, enhance_definitions_prompt, wiBefore, storyString, wiAfter, extensionPrompt, isImpersonate);
 
     // Join by a space and replace placeholders with real user/char names
-    storyString = substituteParams(whole_prompt.join("\n")).replace(/\r/gm, '').trim();
+    storyString = substituteParams(whole_prompt.join("\n"), name1, name2, oai_settings.main_prompt).replace(/\r/gm, '').trim();
 
     let prompt_msg = { "role": "system", "content": storyString }
     let examples_tosend = [];
@@ -387,7 +389,7 @@ async function prepareOpenAIMessages({ systemPrompt, name2, storyString, worldIn
 
     const jailbreak = power_user.prefer_character_jailbreak && jailbreakPrompt ? jailbreakPrompt : oai_settings.jailbreak_prompt;
     if (oai_settings.jailbreak_system && jailbreak) {
-        const jailbreakMessage = { "role": "system", "content": substituteParams(jailbreak) };
+        const jailbreakMessage = { "role": "system", "content": substituteParams(jailbreak, name1, name2, oai_settings.jailbreak_prompt) };
         openai_msgs.push(jailbreakMessage);
 
         total_count += handler_instance.count([jailbreakMessage], true, 'jailbreak');
@@ -1136,6 +1138,11 @@ function trySelectPresetByName(name) {
         }
     }
 
+    // Don't change if the current preset is the same
+    if (preset_found && preset_found === oai_settings.preset_settings_openai) {
+        return;
+    }
+
     if (preset_found) {
         oai_settings.preset_settings_openai = preset_found;
         const value = openai_setting_names[preset_found]
@@ -1173,6 +1180,7 @@ async function saveOpenAIPreset(name, settings) {
         max_context_unlocked: settings.max_context_unlocked,
         nsfw_avoidance_prompt: settings.nsfw_avoidance_prompt,
         wi_format: settings.wi_format,
+        stream_openai: settings.stream_openai,
     };
 
     const savePresetSettings = await fetch(`/savepreset_openai?name=${name}`, {
@@ -1200,6 +1208,8 @@ async function saveOpenAIPreset(name, settings) {
             option.innerText = data.name;
             $('#settings_perset_openai').append(option).trigger('change');
         }
+    } else {
+        toastr.error('Failed to save preset');
     }
 }
 
@@ -1305,8 +1315,80 @@ function addLogitBiasPresetOption(name) {
     $('#openai_logit_bias_preset').trigger('change');
 }
 
+function onImportPresetClick() {
+    $('#openai_preset_import_file').trigger('click');
+}
+
 function onLogitBiasPresetImportClick() {
-    $('#openai_logit_bias_import_file').click();
+    $('#openai_logit_bias_import_file').trigger('click');
+}
+
+async function onPresetImportFileChange(e) {
+    const file = e.target.files[0];
+
+    if (!file) {
+        return;
+    }
+
+    const name = file.name.replace(/\.[^/.]+$/, "");
+    const importedFile = await getFileText(file);
+    let presetBody;
+    e.target.value = '';
+
+    try {
+        presetBody = JSON.parse(importedFile);
+    } catch (err) {
+        toastr.error('Invalid file');
+        return;
+    }
+
+    if (name in openai_setting_names) {
+        const confirm = await callPopup('Preset name already exists. Overwrite?', 'confirm');
+
+        if (!confirm) {
+            return;
+        }
+    }
+
+    const savePresetSettings = await fetch(`/savepreset_openai?name=${name}`, {
+        method: 'POST',
+        headers: getRequestHeaders(),
+        body: importedFile,
+    });
+
+    if (!savePresetSettings.ok) {
+        toastr.error('Failed to save preset');
+        return;
+    }
+
+    const data = await savePresetSettings.json();
+
+    if (Object.keys(openai_setting_names).includes(data.name)) {
+        oai_settings.preset_settings_openai = data.name;
+        const value = openai_setting_names[data.name];
+        Object.assign(openai_settings[value], presetBody);
+        $(`#settings_perset_openai option[value="${value}"]`).attr('selected', true);
+        $('#settings_perset_openai').trigger('change');
+    } else {
+        openai_settings.push(presetBody);
+        openai_setting_names[data.name] = openai_settings.length - 1;
+        const option = document.createElement('option');
+        option.selected = true;
+        option.value = openai_settings.length - 1;
+        option.innerText = data.name;
+        $('#settings_perset_openai').append(option).trigger('change');
+    }
+}
+
+async function onExportPresetClick() {
+    if (!oai_settings.preset_settings_openai) {
+        toastr.error('No preset selected');
+        return;
+    }
+
+    const preset = openai_settings[openai_setting_names[oai_settings.preset_settings_openai]];
+    const presetJsonString = JSON.stringify(preset, null, 4);
+    download(presetJsonString, oai_settings.preset_settings_openai, 'application/json');
 }
 
 async function onLogitBiasPresetImportFileChange(e) {
@@ -1353,7 +1435,7 @@ function onLogitBiasPresetExportClick() {
         return;
     }
 
-    const presetJsonString = JSON.stringify(oai_settings.bias_presets[oai_settings.bias_preset_selected]);
+    const presetJsonString = JSON.stringify(oai_settings.bias_presets[oai_settings.bias_preset_selected], null, 4);
     download(presetJsonString, oai_settings.bias_preset_selected, 'application/json');
 }
 
@@ -1447,6 +1529,7 @@ function onSettingsPresetChange() {
         legacy_streaming: ['#legacy_streaming', 'legacy_streaming', true],
         nsfw_avoidance_prompt: ['#nsfw_avoidance_prompt_textarea', 'nsfw_avoidance_prompt', false],
         wi_format: ['#wi_format_textarea', 'wi_format', false],
+        stream_openai: ['#stream_toggle', 'stream_openai', true],
     };
 
     for (const [key, [selector, setting, isCheckbox]] of Object.entries(settingsToUpdate)) {
@@ -1670,6 +1753,12 @@ async function testApiConnection() {
     }
 }
 
+function reconnectOpenAi() {
+    setOnlineStatus('no_connection');
+    resultCheckStatusOpen();
+    $('#api_button_openai').trigger('click');
+}
+
 $(document).ready(function () {
     $('#test_api_button').on('click', testApiConnection);
 
@@ -1853,10 +1942,11 @@ $(document).ready(function () {
     $('#chat_completion_source').on('change', function () {
         oai_settings.chat_completion_source = $(this).find(":selected").val();
         toggleChatCompletionForms();
-        setOnlineStatus('no_connection');
-        resultCheckStatusOpen();
-        $('#api_button_openai').trigger('click');
         saveSettingsDebounced();
+
+        if (main_api == 'openai') {
+            reconnectOpenAi();
+        }
     });
 
     $('#oai_max_context_unlocked').on('input', function () {
@@ -1878,7 +1968,10 @@ $(document).ready(function () {
     $("#openai_logit_bias_new_preset").on("click", createNewLogitBiasPreset);
     $("#openai_logit_bias_new_entry").on("click", createNewLogitBiasEntry);
     $("#openai_logit_bias_import_file").on("input", onLogitBiasPresetImportFileChange);
+    $("#openai_preset_import_file").on("input", onPresetImportFileChange);
+    $("#export_oai_preset").on("click", onExportPresetClick);
     $("#openai_logit_bias_import_preset").on("click", onLogitBiasPresetImportClick);
     $("#openai_logit_bias_export_preset").on("click", onLogitBiasPresetExportClick);
     $("#openai_logit_bias_delete_preset").on("click", onLogitBiasPresetDeleteClick);
+    $("#import_oai_preset").on("click", onImportPresetClick);
 });

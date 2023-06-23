@@ -12,7 +12,8 @@ import {
     eventSource,
     event_types,
     getCurrentChatId,
-    is_send_press,
+    name1,
+    name2,
 } from "../script.js";
 import { favsToHotswap } from "./RossAscends-mods.js";
 import {
@@ -92,10 +93,12 @@ let power_user = {
     multigen_first_chunk: 50,
     multigen_next_chunks: 30,
     custom_chat_separator: '',
+    markdown_escape_strings: '',
     fast_ui_mode: true,
     avatar_style: avatar_styles.ROUND,
     chat_display: chat_styles.DEFAULT,
     sheld_width: sheld_width.DEFAULT,
+    never_resize_avatars: false,
     play_message_sound: false,
     play_sound_unfocused: true,
     auto_save_msg_edits: false,
@@ -109,14 +112,16 @@ let power_user = {
     main_text_color: `${getComputedStyle(document.documentElement).getPropertyValue('--SmartThemeBodyColor').trim()}`,
     italics_text_color: `${getComputedStyle(document.documentElement).getPropertyValue('--SmartThemeEmColor').trim()}`,
     quote_text_color: `${getComputedStyle(document.documentElement).getPropertyValue('--SmartThemeQuoteColor').trim()}`,
-    fastui_bg_color: `${getComputedStyle(document.documentElement).getPropertyValue('--SmartThemeFastUIBGColor').trim()}`,
+    //fastui_bg_color: `${getComputedStyle(document.documentElement).getPropertyValue('--SmartThemeFastUIBGColor').trim()}`,
     blur_tint_color: `${getComputedStyle(document.documentElement).getPropertyValue('--SmartThemeBlurTintColor').trim()}`,
+    user_mes_blur_tint_color: `${getComputedStyle(document.documentElement).getPropertyValue('--SmartThemeUserMesBlurTintColor').trim()}`,
+    bot_mes_blur_tint_color: `${getComputedStyle(document.documentElement).getPropertyValue('--SmartThemeBotMesBlurTintColor').trim()}`,
     shadow_color: `${getComputedStyle(document.documentElement).getPropertyValue('--SmartThemeShadowColor').trim()}`,
 
     waifuMode: false,
     movingUI: false,
     noShadows: false,
-    theme: 'Default (Dark)',
+    theme: 'Default (Dark) 1.7.1',
 
     auto_swipe: false,
     auto_swipe_minimum_length: 0,
@@ -129,8 +134,10 @@ let power_user = {
     render_formulas: false,
     allow_name1_display: false,
     allow_name2_display: false,
+    //removeXML: false,
     hotswap_enabled: true,
     timer_enabled: true,
+    timestamps_enabled: true,
     max_context_unlocked: false,
     prefer_character_prompt: true,
     prefer_character_jailbreak: true,
@@ -146,6 +153,7 @@ let power_user = {
         output_sequence: '### Response:',
         preset: 'Alpaca',
         separator_sequence: '',
+        macro: false,
     },
 
     personas: {},
@@ -165,8 +173,10 @@ const storage_keys = {
     main_text_color: "TavernAI_main_text_color",
     italics_text_color: "TavernAI_italics_text_color",
     quote_text_color: "TavernAI_quote_text_color",
-    fastui_bg_color: "TavernAI_fastui_bg_color",
+    //fastui_bg_color: "TavernAI_fastui_bg_color",
     blur_tint_color: "TavernAI_blur_tint_color",
+    user_mes_blur_tint_color: "TavernAI_user_mes_blur_tint_color",
+    bot_mes_blur_tint_color: "TavernAI_bot_mes_blur_tint_color",
     blur_strength: "TavernAI_blur_strength",
     shadow_color: "TavernAI_shadow_color",
     shadow_width: "TavernAI_shadow_width",
@@ -177,6 +187,7 @@ const storage_keys = {
 
     hotswap_enabled: 'HotswapEnabled',
     timer_enabled: 'TimerEnabled',
+    timestamps_enabled: 'TimestampsEnabled',
 };
 
 let browser_has_focus = true;
@@ -247,6 +258,13 @@ function switchTimer() {
     $("#messageTimerEnabled").prop("checked", power_user.timer_enabled);
 }
 
+function switchTimestamps() {
+    const value = localStorage.getItem(storage_keys.timestamps_enabled);
+    power_user.timestamps_enabled = value === null ? true : value == "true";
+    $("body").toggleClass("no-timestamps", !power_user.timestamps_enabled);
+    $("#messageTimestampsEnabled").prop("checked", power_user.timestamps_enabled);
+}
+
 function switchUiMode() {
     const fastUi = localStorage.getItem(storage_keys.fast_ui_mode);
     power_user.fast_ui_mode = fastUi === null ? true : fastUi == "true";
@@ -259,7 +277,7 @@ function toggleWaifu() {
 }
 
 function switchWaifuMode() {
-    console.log(`switching waifu to ${power_user.waifuMode}`);
+    //console.log(`switching waifu to ${power_user.waifuMode}`);
     $("body").toggleClass("waifuMode", power_user.waifuMode);
     $("#waifuMode").prop("checked", power_user.waifuMode);
     scrollChatToBottom();
@@ -316,11 +334,17 @@ async function applyThemeColor(type) {
     if (type === 'quote') {
         document.documentElement.style.setProperty('--SmartThemeQuoteColor', power_user.quote_text_color);
     }
-    if (type === 'fastUIBG') {
-        document.documentElement.style.setProperty('--SmartThemeFastUIBGColor', power_user.fastui_bg_color);
-    }
+    /*     if (type === 'fastUIBG') {
+            document.documentElement.style.setProperty('--SmartThemeFastUIBGColor', power_user.fastui_bg_color);
+        } */
     if (type === 'blurTint') {
         document.documentElement.style.setProperty('--SmartThemeBlurTintColor', power_user.blur_tint_color);
+    }
+    if (type === 'userMesBlurTint') {
+        document.documentElement.style.setProperty('--SmartThemeUserMesBlurTintColor', power_user.user_mes_blur_tint_color);
+    }
+    if (type === 'botMesBlurTint') {
+        document.documentElement.style.setProperty('--SmartThemeBotMesBlurTintColor', power_user.bot_mes_blur_tint_color);
     }
     if (type === 'shadow') {
         document.documentElement.style.setProperty('--SmartThemeShadowColor', power_user.shadow_color);
@@ -361,8 +385,10 @@ async function applyTheme(name) {
         { key: 'main_text_color', selector: '#main-text-color-picker', type: 'main' },
         { key: 'italics_text_color', selector: '#italics-color-picker', type: 'italics' },
         { key: 'quote_text_color', selector: '#quote-color-picker', type: 'quote' },
-        { key: 'fastui_bg_color', selector: '#fastui-bg-color-picker', type: 'fastUIBG' },
+        //{ key: 'fastui_bg_color', selector: '#fastui-bg-color-picker', type: 'fastUIBG' },
         { key: 'blur_tint_color', selector: '#blur-tint-color-picker', type: 'blurTint' },
+        { key: 'user_mes_blur_tint_color', selector: '#user-mes-blur-tint-color-picker', type: 'userMesBlurTint' },
+        { key: 'bot_mes_blur_tint_color', selector: '#bot-mes-blur-tint-color-picker', type: 'botMesBlurTint' },
         { key: 'shadow_color', selector: '#shadow-color-picker', type: 'shadow' },
         {
             key: 'blur_strength',
@@ -435,6 +461,13 @@ async function applyTheme(name) {
             }
         },
         {
+            key: 'timestamps_enabled',
+            action: async () => {
+                localStorage.setItem(storage_keys.timestamps_enabled, power_user.timestamps_enabled);
+                switchTimestamps();
+            }
+        },
+        {
             key: 'hotswap_enabled',
             action: async () => {
                 localStorage.setItem(storage_keys.hotswap_enabled, power_user.hotswap_enabled);
@@ -449,6 +482,10 @@ async function applyTheme(name) {
             if (selector) $(selector).attr('color', power_user[key]);
             if (type) await applyThemeColor(type);
             if (action) await action();
+        } else {
+            if (selector) { $(selector).attr('color', 'rgba(0,0,0,0)') };
+            console.debug(`Empty theme key: ${key}`);
+            power_user[key] = '';
         }
     }
 
@@ -467,6 +504,7 @@ switchMovingUI();
 noShadows();
 switchHotswap();
 switchTimer();
+switchTimestamps();
 
 function loadPowerUserSettings(settings, data) {
     // Load from settings.json
@@ -488,11 +526,13 @@ function loadPowerUserSettings(settings, data) {
     const noShadows = localStorage.getItem(storage_keys.noShadows);
     const hotswap = localStorage.getItem(storage_keys.hotswap_enabled);
     const timer = localStorage.getItem(storage_keys.timer_enabled);
+    const timestamps = localStorage.getItem(storage_keys.timestamps_enabled);
     power_user.fast_ui_mode = fastUi === null ? true : fastUi == "true";
     power_user.movingUI = movingUI === null ? false : movingUI == "true";
     power_user.noShadows = noShadows === null ? false : noShadows == "true";
     power_user.hotswap_enabled = hotswap === null ? true : hotswap == "true";
     power_user.timer_enabled = timer === null ? true : timer == "true";
+    power_user.timestamps_enabled = timestamps === null ? true : timestamps == "true";
     power_user.avatar_style = Number(localStorage.getItem(storage_keys.avatar_style) ?? avatar_styles.ROUND);
     power_user.chat_display = Number(localStorage.getItem(storage_keys.chat_display) ?? chat_styles.DEFAULT);
     power_user.sheld_width = Number(localStorage.getItem(storage_keys.sheld_width) ?? sheld_width.DEFAULT);
@@ -522,6 +562,7 @@ function loadPowerUserSettings(settings, data) {
     $("#include_newline_checkbox").prop("checked", power_user.include_newline);
     $('#render_formulas').prop("checked", power_user.render_formulas);
     $("#custom_chat_separator").val(power_user.custom_chat_separator);
+    $("#markdown_escape_strings").val(power_user.markdown_escape_strings);
     $("#fast_ui_mode").prop("checked", power_user.fast_ui_mode);
     $("#waifuMode").prop("checked", power_user.waifuMode);
     $("#movingUImode").prop("checked", power_user.movingUI);
@@ -531,11 +572,14 @@ function loadPowerUserSettings(settings, data) {
     $("#multigen_next_chunks").val(power_user.multigen_next_chunks);
     $("#play_message_sound").prop("checked", power_user.play_message_sound);
     $("#play_sound_unfocused").prop("checked", power_user.play_sound_unfocused);
+    $("#never_resize_avatars").prop("checked", power_user.never_resize_avatars);
     $("#auto_save_msg_edits").prop("checked", power_user.auto_save_msg_edits);
     $("#allow_name1_display").prop("checked", power_user.allow_name1_display);
     $("#allow_name2_display").prop("checked", power_user.allow_name2_display);
+    //$("#removeXML").prop("checked", power_user.removeXML);
     $("#hotswapEnabled").prop("checked", power_user.hotswap_enabled);
     $("#messageTimerEnabled").prop("checked", power_user.timer_enabled);
+    $("#messageTimestampsEnabled").prop("checked", power_user.timestamps_enabled);
     $("#prefer_character_prompt").prop("checked", power_user.prefer_character_prompt);
     $("#prefer_character_jailbreak").prop("checked", power_user.prefer_character_jailbreak);
     $(`input[name="avatar_style"][value="${power_user.avatar_style}"]`).prop("checked", true);
@@ -555,8 +599,10 @@ function loadPowerUserSettings(settings, data) {
     $("#main-text-color-picker").attr('color', power_user.main_text_color);
     $("#italics-color-picker").attr('color', power_user.italics_text_color);
     $("#quote-color-picker").attr('color', power_user.quote_text_color);
-    $("#fastui-bg-color-picker").attr('color', power_user.fastui_bg_color);
+    //$("#fastui-bg-color-picker").attr('color', power_user.fastui_bg_color);
     $("#blur-tint-color-picker").attr('color', power_user.blur_tint_color);
+    $("#user-mes-blur-tint-color-picker").attr('color', power_user.user_mes_blur_tint_color);
+    $("#bot-mes-blur-tint-color-picker").attr('color', power_user.bot_mes_blur_tint_color);
     $("#shadow-color-picker").attr('color', power_user.shadow_color);
 
     for (const theme of themes) {
@@ -607,6 +653,7 @@ function loadInstructMode() {
         { id: "instruct_output_sequence", property: "output_sequence", isCheckbox: false },
         { id: "instruct_stop_sequence", property: "stop_sequence", isCheckbox: false },
         { id: "instruct_names", property: "names", isCheckbox: true },
+        { id: "instruct_macro", property: "macro", isCheckbox: true },
     ];
 
     controls.forEach(control => {
@@ -659,11 +706,11 @@ function loadInstructMode() {
 
 export function formatInstructModeChat(name, mes, isUser, isNarrator, forceAvatar, name1, name2) {
     const includeNames = isNarrator ? false : (power_user.instruct.names || !!selected_group || !!forceAvatar);
-    const sequence = substituteParams(
-        (isUser || isNarrator) ? power_user.instruct.input_sequence : power_user.instruct.output_sequence,
-        name1,
-        name2
-    );
+    let sequence = (isUser || isNarrator) ? power_user.instruct.input_sequence : power_user.instruct.output_sequence;
+
+    if (power_user.instruct.macro) {
+        sequence = substituteParams(sequence, name1, name2);
+    }
 
     const separator = power_user.instruct.wrap ? '\n' : '';
     const separatorSequence = power_user.instruct.separator_sequence && !isUser
@@ -678,20 +725,20 @@ export function formatInstructStoryString(story, systemPrompt) {
     // If the character has a custom system prompt AND user has it preferred, use that instead of the default
     systemPrompt = power_user.prefer_character_prompt && systemPrompt ? systemPrompt : power_user.instruct.system_prompt;
     const sequence = power_user.instruct.system_sequence || '';
-    const prompt = substituteParams(systemPrompt) || '';
+    const prompt = substituteParams(systemPrompt, name1, name2, power_user.instruct.system_prompt) || '';
     const separator = power_user.instruct.wrap ? '\n' : '';
-    const textArray = [sequence, prompt + '\n' + story, separator];
+    const textArray = [sequence, prompt + '\n' + story];
     const text = textArray.filter(x => x).join(separator);
     return text;
 }
 
 export function formatInstructModePrompt(name, isImpersonate, promptBias, name1, name2) {
     const includeNames = power_user.instruct.names || !!selected_group;
-    const sequence = substituteParams(
-        isImpersonate ? power_user.instruct.input_sequence : power_user.instruct.output_sequence,
-        name1,
-        name2
-    );
+    let sequence = isImpersonate ? power_user.instruct.input_sequence : power_user.instruct.output_sequence;
+
+    if (power_user.instruct.macro) {
+        sequence = substituteParams(sequence, name1, name2);
+    }
 
     const separator = power_user.instruct.wrap ? '\n' : '';
     let text = includeNames ? (separator + sequence + separator + `${name}:`) : (separator + sequence);
@@ -775,8 +822,10 @@ async function saveTheme() {
         main_text_color: power_user.main_text_color,
         italics_text_color: power_user.italics_text_color,
         quote_text_color: power_user.quote_text_color,
-        fastui_bg_color: power_user.fastui_bg_color,
+        //fastui_bg_color: power_user.fastui_bg_color,
         blur_tint_color: power_user.blur_tint_color,
+        user_mes_blur_tint_color: power_user.user_mes_blur_tint_color,
+        bot_mes_blur_tint_color: power_user.bot_mes_blur_tint_color,
         shadow_color: power_user.shadow_color,
         shadow_width: power_user.shadow_width,
         font_scale: power_user.font_scale,
@@ -787,6 +836,7 @@ async function saveTheme() {
         noShadows: power_user.noShadows,
         sheld_width: power_user.sheld_width,
         timer_enabled: power_user.timer_enabled,
+        timestamps_enabled: power_user.timestamps_enabled,
         hotswap_enabled: power_user.hotswap_enabled,
 
     };
@@ -960,6 +1010,12 @@ $(document).ready(() => {
         reloadMarkdownProcessor(power_user.render_formulas);
     });
 
+    $("#markdown_escape_strings").on('input', function () {
+        power_user.markdown_escape_strings = $(this).val();
+        saveSettingsDebounced();
+        reloadMarkdownProcessor(power_user.render_formulas);
+    });
+
     $("#multigen").change(function () {
         power_user.multigen = $(this).prop("checked");
         saveSettingsDebounced();
@@ -1050,15 +1106,27 @@ $(document).ready(() => {
         saveSettingsDebounced();
     });
 
-    $("#fastui-bg-color-picker").on('change', (evt) => {
-        power_user.fastui_bg_color = evt.detail.rgba;
-        applyThemeColor('fastUIBG');
-        saveSettingsDebounced();
-    });
+    /*     $("#fastui-bg-color-picker").on('change', (evt) => {
+            power_user.fastui_bg_color = evt.detail.rgba;
+            applyThemeColor('fastUIBG');
+            saveSettingsDebounced();
+        }); */
 
     $("#blur-tint-color-picker").on('change', (evt) => {
         power_user.blur_tint_color = evt.detail.rgba;
         applyThemeColor('blurTint');
+        saveSettingsDebounced();
+    });
+
+    $("#user-mes-blur-tint-color-picker").on('change', (evt) => {
+        power_user.user_mes_blur_tint_color = evt.detail.rgba;
+        applyThemeColor('userMesBlurTint');
+        saveSettingsDebounced();
+    });
+
+    $("#bot-mes-blur-tint-color-picker").on('change', (evt) => {
+        power_user.bot_mes_blur_tint_color = evt.detail.rgba;
+        applyThemeColor('botMesBlurTint');
         saveSettingsDebounced();
     });
 
@@ -1076,6 +1144,11 @@ $(document).ready(() => {
     });
 
     $("#ui-preset-save-button").on('click', saveTheme);
+
+    $("#never_resize_avatars").on('input', function () {
+        power_user.never_resize_avatars = !!$(this).prop('checked');
+        saveSettingsDebounced();
+    });
 
     $("#play_message_sound").on('input', function () {
         power_user.play_message_sound = !!$(this).prop('checked');
@@ -1199,6 +1272,12 @@ $(document).ready(() => {
         saveSettingsDebounced();
     });
 
+    /*     $("#removeXML").on("input", function () {
+            power_user.removeXML = !!$(this).prop('checked');
+            reloadCurrentChat();
+            saveSettingsDebounced();
+        }); */
+
     $("#token_padding").on("input", function () {
         power_user.token_padding = Number($(this).val());
         saveSettingsDebounced();
@@ -1209,6 +1288,13 @@ $(document).ready(() => {
         power_user.timer_enabled = value;
         localStorage.setItem(storage_keys.timer_enabled, power_user.timer_enabled);
         switchTimer();
+    });
+
+    $("#messageTimestampsEnabled").on("input", function () {
+        const value = !!$(this).prop('checked');
+        power_user.timestamps_enabled = value;
+        localStorage.setItem(storage_keys.timestamps_enabled, power_user.timestamps_enabled);
+        switchTimestamps();
     });
 
     $("#hotswapEnabled").on("input", function () {

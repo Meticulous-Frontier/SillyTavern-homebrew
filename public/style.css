@@ -30,8 +30,6 @@
     --crimson70a: rgba(100, 0, 0, 0.7);
     --okGreen70a: rgba(0, 100, 0, 0.7);
     --cobalt30a: rgba(100, 100, 255, 0.3);
-    --sienna: rgb(210, 100, 40);
-    --orangered: rgb(255, 90, 0);
     --greyCAIbg: rgb(36, 36, 37);
     --ivory: rgb(220, 220, 210);
     --golden: rgba(212, 175, 55, 1);
@@ -39,10 +37,12 @@
 
     /*Default Theme, will be changed by ToolCool Color Picker*/
     --SmartThemeBodyColor: rgb(220, 220, 210);
-    --SmartThemeEmColor: rgb(175, 175, 175);
-    --SmartThemeQuoteColor: rgb(220, 220, 210);
-    --SmartThemeFastUIBGColor: rgba(0, 0, 0, 0.9);
-    --SmartThemeBlurTintColor: rgba(0, 0, 0, 0.5);
+    --SmartThemeEmColor: rgb(145, 145, 145);
+    --SmartThemeQuoteColor: rgb(225, 138, 36);
+    /* --SmartThemeFastUIBGColor: rgba(0, 0, 0, 0.9); */
+    --SmartThemeBlurTintColor: rgba(23, 23, 23, 1);
+    --SmartThemeUserMesBlurTintColor: rgba(0, 0, 0, 0.3);
+    --SmartThemeBotMesBlurTintColor: rgba(60, 60, 60, 0.3);
     --SmartThemeBlurStrength: calc(var(--blurStrength) * 1px);
     --SmartThemeShadowColor: rgba(0, 0, 0, 0.5);
 
@@ -687,7 +687,16 @@ hr {
     gap: 5px;
 }
 
+#avatar_div_div {
+    border: 2px solid var(--SmartThemeBodyColor);
+    margin: 2px;
+    cursor: pointer;
+    transition: filter 0.2s ease-in-out;
+}
 
+#avatar_div_div:hover {
+    filter: drop-shadow(0px 0px 5px var(--SmartThemeQuoteColor));
+}
 
 .avatar {
     width: 50px;
@@ -765,6 +774,10 @@ body.no-hotswap .hotswap {
 }
 
 body.no-timer .mes_timer {
+    display: none !important;
+}
+
+body.no-timestamps .timestamp {
     display: none !important;
 }
 
@@ -989,9 +1002,9 @@ input[type="file"] {
 #right-nav-panel-tabs {
     display: flex;
     align-items: center;
-    flex: 1;
     gap: 10px;
     overflow: hidden;
+    width: fit-content;
 }
 
 #rm_PinAndTabs {
@@ -1190,6 +1203,10 @@ select option:not(:checked) {
     color: #c5b457 !important;
 }
 
+.world_set {
+    color: #4b9c00 !important;
+}
+
 .displayBlock {
     display: block !important;
 }
@@ -1309,6 +1326,27 @@ input[type=search]:focus::-webkit-search-cancel-button {
     font-weight: bolder;
 }
 
+.character_select .avatar {
+    align-self: center;
+}
+
+.ch_description {
+    font-size: calc(var(--mainFontSize) * 0.8);
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    width: 100%;
+    margin-top: -5px;
+}
+
+body.big-avatars .ch_description {
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    white-space: normal;
+    text-overflow: unset;
+}
+
 .justifySpaceBetween {
     justify-content: space-between;
 }
@@ -1336,6 +1374,10 @@ input[type=search]:focus::-webkit-search-cancel-button {
 
 .gap5px {
     gap: 5px !important;
+}
+
+.gap10px {
+    gap: 10px !important;
 }
 
 .wide10pMinFit {
@@ -1546,6 +1588,10 @@ input[type=search]:focus::-webkit-search-cancel-button {
     align-items: center;
 }
 
+grammarly-extension {
+    z-index: 35;
+}
+
 .avatar-container:hover .avatar-buttons {
     display: flex;
 }
@@ -1586,6 +1632,7 @@ input[type=search]:focus::-webkit-search-cancel-button {
     display: flex;
     justify-content: center;
     align-items: center;
+    align-self: center !important;
 }
 
 #first_message_div {
@@ -1875,6 +1922,10 @@ input[type=search]:focus::-webkit-search-cancel-button {
     column-gap: 20px;
 }
 
+.drag-handle {
+    cursor: grab;
+}
+
 .world_info_select_block {
     display: flex;
     flex-direction: row;
@@ -1883,7 +1934,6 @@ input[type=search]:focus::-webkit-search-cancel-button {
 }
 
 #world_popup {
-    display: none;
     min-height: 100px;
     min-width: 100px;
     left: 0;
@@ -1899,11 +1949,7 @@ input[type=search]:focus::-webkit-search-cancel-button {
 }
 
 .WIEntryContentAndMemo .world_entry_thin_controls {
-    width: 50%;
-}
-
-#world_popup_name_button {
-    display: none;
+    flex: 1;
 }
 
 #world_popup_bottom_holder {
@@ -1999,10 +2045,6 @@ input[type=search]:focus::-webkit-search-cancel-button {
     flex: 1;
 }
 
-.checkbox_fancy {
-    cursor: pointer;
-}
-
 .world_entry_form_control label h4 {
     margin-bottom: 0;
     margin-top: 0;
@@ -2017,6 +2059,11 @@ input[type=search]:focus::-webkit-search-cancel-button {
     height: auto;
     margin-top: 0;
     margin-bottom: 0;
+    min-height: 32px;
+}
+
+.delete_entry_button {
+    align-self: center;
 }
 
 .world_entry_form_control.world_entry_form_horizontal {
@@ -2282,16 +2329,15 @@ input[type="range"]::-webkit-slider-thumb {
     width: calc(var(--mainFontSize) + 0.2rem);
     height: calc(var(--mainFontSize) + 0.2rem);
     display: inline-block;
-    opacity: 0.7;
+    opacity: 0.5;
     margin: 0 5px;
     text-align: center;
     box-shadow: 0 0 3px black;
+    transition: all 250ms;
 }
 
 
 .note-link-span:hover {
-    color: var(--white100);
-    background-color: var(--orangered);
     opacity: 1;
 }
 
@@ -2472,10 +2518,12 @@ input[type="range"]::-webkit-slider-thumb {
     background-color: var(--black30a);
     backdrop-filter: blur(calc(var(--SmartThemeBlurStrength)*2));
     -webkit-backdrop-filter: blur(calc(var(--SmartThemeBlurStrength)*2));
-    min-height: calc(100svh - 84px);
+
     min-width: 100px;
     max-width: var(--sheldWidth);
+    height: calc(100svh - 84px);
     min-height: calc(100svh - 84px);
+    max-height: calc(100svh - 84px);
     position: absolute;
     z-index: 3002;
     margin-left: auto;
@@ -2670,6 +2718,7 @@ h5 {
 }
 
 .renameChatButton,
+.exportRawChatButton,
 .exportChatButton {
     cursor: pointer;
 }
@@ -2868,6 +2917,30 @@ h5 {
 .tag.selected {
     opacity: 1 !important;
     filter: none !important;
+}
+
+.tag.excluded {
+    opacity: 1 !important;
+    filter: saturate(0.4) !important;
+    border: 1px solid red;
+}
+
+.tag.excluded:after {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    content: "\d7";
+    font-size: calc(var(--mainFontSize) *3);
+    color: red;
+    line-height: calc(var(--mainFontSize)*1.3);
+    text-align: center;
+    text-shadow: 1px 1px 0px black,
+        -1px -1px 0px black,
+        -1px 1px 0px black,
+        1px -1px 0px black;
+    opacity: 1;
 }
 
 #avatarCropWrap {
@@ -3624,7 +3697,6 @@ label[for="extensions_autoconnect"] {
 
 #extensions_settings .inline-drawer-toggle.inline-drawer-header,
 #extensions_settings2 .inline-drawer-toggle.inline-drawer-header {
-    /* background-color: var(--SmartThemeBlurTintColor); */
     background-image: linear-gradient(348deg, var(--white30a)2%, var(--grey30a)10%, var(--black70a)95%, var(--SmartThemeQuoteColor)100%);
     margin-bottom: 5px;
     border-radius: 10px;
@@ -3863,7 +3935,7 @@ toolcool-color-picker {
 }
 
 .flex2 {
-    flex: 2;
+    flex: 2 !important;
 }
 
 .flexFlowColumn {
@@ -4085,9 +4157,13 @@ toolcool-color-picker {
 body.bubblechat .mes {
     padding: 10px;
     border-radius: 10px;
-    background-color: var(--SmartThemeBlurTintColor);
+    background-color: var(--SmartThemeBotMesBlurTintColor);
     margin-bottom: 5px;
     border: 1px solid var(--white30a);
+}
+
+body.bubblechat .mes[is_user="true"] {
+    background-color: var(--SmartThemeUserMesBlurTintColor);
 }
 
 body.w1000px #sheld {
@@ -4100,8 +4176,6 @@ body.no-blur * {
     backdrop-filter: unset !important;
 }
 
-
-
 body.no-blur #send_form.no-connection {
     background-color: rgba(100, 0, 0, 0.9) !important;
 }
@@ -4112,19 +4186,23 @@ body.no-blur #bg_custom {
 
 }
 
-body.no-blur .drawer-content,
 body:not(.bubblechat).no-blur #chat,
-body.bubblechat.no-blur .mes,
 body.no-blur #top-bar,
+body.no-blur #send_form {
+    background-color: var(--SmartThemeBlurTintColor) !important;
+}
+
+body.no-blur #options,
+body.no-blur .ui-widget-content,
+body.no-blur #floatingPrompt,
+body.no-blur #extensionsMenu,
+body.no-blur .list-group,
 body.no-blur #character_popup,
 body.no-blur #world_popup,
 body.no-blur #dialogue_popup,
 body.no-blur #select_chat_popup,
-body.no-blur .options-content,
-body.no-blur #send_form,
-body.no-blur .list-group,
-body.no-blur .ui-widget-content {
-    background-color: var(--SmartThemeFastUIBGColor) !important;
+body.no-blur .drawer-content {
+    background-color: black !important;
 }
 
 /* wAIfu mode*/
@@ -4204,7 +4282,7 @@ body.noShadows * {
     position: absolute;
     padding: 0;
     filter: drop-shadow(2px 2px 2px #51515199);
-    z-index: 2;
+    z-index: 29;
     overflow: hidden;
     display: none;
     bottom: 0;
@@ -4220,7 +4298,7 @@ body.waifuMode #avatar_zoom_popup {
     position: absolute;
     padding: 0;
     filter: drop-shadow(2px 2px 2px #51515199);
-    z-index: 2;
+    z-index: 29;
     overflow: hidden;
     display: none;
     left: 0;
@@ -4285,6 +4363,11 @@ body.waifuMode #avatar_zoom_popup {
 
 .flexGap5 {
     gap: 5px;
+}
+
+.timestamp {
+    font-size: calc(var(--mainFontSize) * 0.7);
+    font-weight: 400;
 }
 
 
@@ -4404,6 +4487,10 @@ body.waifuMode #avatar_zoom_popup {
         top: 40px;
     }
 
+    .wi-settings {
+        flex-direction: column;
+    }
+
     #character_popup,
     #world_popup {
         overflow-y: auto;
@@ -4413,6 +4500,7 @@ body.waifuMode #avatar_zoom_popup {
     #send_form {
         border: 1px solid var(--grey30);
         backdrop-filter: blur(calc(var(--SmartThemeBlurStrength) * 2));
+        max-width: 100dvw;
     }
 
     #chat {

@@ -329,7 +329,7 @@ app.use('/characters', (req, res) => {
         res.send(data);
     });
 });
-app.use(multer({ dest: "uploads" }).single("avatar"));
+app.use(multer({ dest: "uploads", limits: { fieldSize: 10 * 1024 * 1024 } }).single("avatar"));
 app.get("/", function (request, response) {
     response.sendFile(process.cwd() + "/public/index.html");
 });
@@ -578,7 +578,7 @@ app.post("/savechat", jsonParser, function (request, response) {
         var dir_name = String(request.body.avatar_url).replace('.png', '');
         let chat_data = request.body.chat;
         let jsonlData = chat_data.map(JSON.stringify).join('\n');
-        fs.writeFileSync(`${chatsPath + dir_name}/${sanitize(String(request.body.file_name))}.jsonl`, jsonlData, 'utf8');
+        fs.writeFileSync(`${chatsPath + sanitize(dir_name)}/${sanitize(String(request.body.file_name))}.jsonl`, jsonlData, 'utf8');
         return response.send({ result: "ok" });
     } catch (error) {
         response.send(error);
@@ -830,12 +830,29 @@ function charaFormatData(data) {
     // ST extension fields to V2 object
     _.set(char, 'data.extensions.talkativeness', data.talkativeness);
     _.set(char, 'data.extensions.fav', data.fav == 'true');
+    _.set(char, 'data.extensions.world', data.world || '');
     //_.set(char, 'data.extensions.create_date', humanizedISO8601DateTime());
     //_.set(char, 'data.extensions.avatar', 'none');
     //_.set(char, 'data.extensions.chat', data.ch_name + ' - ' + humanizedISO8601DateTime());
 
-    // TODO: Character book
-    _//.set(char, 'data.character_book', undefined);
+    if (data.world) {
+        try {
+            const file = readWorldInfoFile(data.world);
+
+            // File was imported - save it to the character book
+            if (file && file.originalData) {
+                _.set(char, 'data.character_book', file.originalData);
+            }
+
+            // File was not imported - convert the world info to the character book
+            if (file && file.entries) {
+                _.set(char, 'data.character_book', convertWorldInfoToCharacterBook(data.world, file.entries));
+            }
+
+        } catch {
+            console.debug(`Failed to read world info file: ${data.world}. Character book will not be available.`);
+        }
+    }
 
     return char;
 }
@@ -1032,13 +1049,19 @@ async function charaWrite(img_url, data, target_img, response = undefined, mes =
 async function tryReadImage(img_url, crop) {
     try {
         let rawImg = await jimp.read(img_url);
+		let final_width = rawImg.bitmap.width, final_height = rawImg.bitmap.height
 
         // Apply crop if defined
         if (typeof crop == 'object' && [crop.x, crop.y, crop.width, crop.height].every(x => typeof x === 'number')) {
             rawImg = rawImg.crop(crop.x, crop.y, crop.width, crop.height);
+			// Apply standard resize if requested
+			if (crop.want_resize) {
+				final_width = AVATAR_WIDTH
+				final_height = AVATAR_HEIGHT
+			}
         }
 
-        const image = await rawImg.cover(AVATAR_WIDTH, AVATAR_HEIGHT).getBufferAsync(jimp.MIME_PNG);
+		const image = await rawImg.cover(final_width, final_height).getBufferAsync(jimp.MIME_PNG);
         return image;
     }
     // If it's an unsupported type of image (APNG) - just read the file as buffer
@@ -1198,9 +1221,12 @@ app.post("/delchat", jsonParser, function (request, response) {
         return response.sendStatus(403);
     }
 
-    const fileName = path.join(directories.chats, '/', sanitize(request.body.id), '/', sanitize(request.body.chatfile));
-    if (!fs.existsSync(fileName)) {
-        console.log('Chat file not found');
+    const dirName = String(request.body.avatar_url).replace('.png', '');
+    const fileName = `${chatsPath + dirName}/${sanitize(String(request.body.chatfile))}`;
+    const chatFileExists = fs.existsSync(fileName);
+
+    if (!chatFileExists) {
+        console.log(`Chat file not found '${fileName}'`);
         return response.sendStatus(400);
     } else {
         console.log('found the chat file: ' + fileName);
@@ -1424,10 +1450,39 @@ app.post('/savetheme', jsonParser, (request, response) => {
     }
 
     const filename = path.join(directories.themes, sanitize(request.body.name) + '.json');
-    fs.writeFileSync(filename, JSON.stringify(request.body), 'utf8');
+    fs.writeFileSync(filename, JSON.stringify(request.body, null, 4), 'utf8');
 
     return response.sendStatus(200);
 });
+
+function convertWorldInfoToCharacterBook(name, entries) {
+    const result = { entries: [], name };
+
+    for (const index in entries) {
+        const entry = entries[index];
+
+        const originalEntry = {
+            id: entry.uid,
+            keys: entry.key,
+            secondary_keys: entry.keysecondary,
+            comment: entry.comment,
+            content: entry.content,
+            constant: entry.constant,
+            selective: entry.selective,
+            insertion_order: entry.order,
+            enabled: !entry.disable,
+            position: entry.position == 0 ? 'before_char' : 'after_char',
+            extensions: {
+                position: entry.position,
+                exclude_recursion: entry.excludeRecursion,
+            }
+        };
+
+        result.entries.push(originalEntry);
+    }
+
+    return result;
+}
 
 function readWorldInfoFile(worldInfoName) {
     if (!worldInfoName) {
@@ -1839,8 +1894,29 @@ app.post("/exportchat", jsonParser, async function (request, response) {
         return response.status(404).json(errorMessage);
     }
     try {
+        // Short path for JSONL files
+        if (request.body.format == 'jsonl') {
+            try {
+                const rawFile = fs.readFileSync(filename, 'utf8');
+                const successMessage = {
+                    message: `Chat saved to ${exportfilename}`,
+                    result: rawFile,
+                }
+
+                console.log(`Chat exported as ${exportfilename}`);
+                return response.status(200).json(successMessage);
+            }
+            catch (err) {
+                console.error(err);
+                const errorMessage = {
+                    message: `Could not read JSONL file to export. Source chat file: ${filename}.`
+                }
+                console.log(errorMessage.message);
+                return response.status(500).json(errorMessage);
+            }
+        }
+
         const readline = require('readline');
-        const fs = require('fs');
         const readStream = fs.createReadStream(filename);
         const rl = readline.createInterface({
             input: readStream,
@@ -2076,14 +2152,16 @@ app.post("/importchat", urlencodedParser, function (request, response) {
 app.post('/importworldinfo', urlencodedParser, (request, response) => {
     if (!request.file) return response.sendStatus(400);
 
-    const filename = sanitize(request.file.originalname);
+    const filename = `${path.parse(sanitize(request.file.originalname)).name}.json`;
 
-    if (path.parse(filename).ext.toLowerCase() !== '.json') {
-        return response.status(400).send('Only JSON files are supported.')
+    let fileContents = null;
+
+    if (request.body.convertedData) {
+        fileContents = request.body.convertedData;
+    } else {
+        const pathToUpload = path.join('./uploads/', request.file.filename);
+        fileContents = fs.readFileSync(pathToUpload, 'utf8');
     }
-
-    const pathToUpload = path.join('./uploads/', request.file.filename);
-    const fileContents = fs.readFileSync(pathToUpload, 'utf8');
 
     try {
         const worldContent = json5.parse(fileContents);
@@ -2125,7 +2203,7 @@ app.post('/editworldinfo', jsonParser, (request, response) => {
     const filename = `${request.body.name}.json`;
     const pathToFile = path.join(directories.worlds, filename);
 
-    fs.writeFileSync(pathToFile, JSON.stringify(request.body.data));
+    fs.writeFileSync(pathToFile, JSON.stringify(request.body.data, null, 4));
 
     return response.send({ ok: true });
 });
@@ -3124,7 +3202,7 @@ app.post("/savepreset_openai", jsonParser, function (request, response) {
 
     const filename = `${name}.settings`;
     const fullpath = path.join(directories.openAI_Settings, filename);
-    fs.writeFileSync(fullpath, JSON.stringify(request.body), 'utf-8');
+    fs.writeFileSync(fullpath, JSON.stringify(request.body, null, 4), 'utf-8');
     return response.send({ name });
 });
 
