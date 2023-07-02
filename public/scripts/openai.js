@@ -203,7 +203,7 @@ function setOpenAIMessages(chat) {
     for (let i = chat.length - 1; i >= 0; i--) {
         let role = chat[j]['is_user'] ? 'user' : 'assistant';
         let content = chat[j]['mes'];
-        if (i == 0 && chat[j]['is_user']) { content += substituteParams(`\n[{{char}} must react to this new observation.]`) }
+        if (i == 0 && chat[j]['is_user']) { content += substituteParams(`\n[{{char}} must continue post this plot-point.]`) }
         if (i == 0 && !chat[j]['is_user']) { content += substituteParams(`\n[{{char}} must continue post this plot-point.]`) }
 
         // 100% legal way to send a message as system
@@ -349,7 +349,7 @@ async function prepareOpenAIMessages({ systemPrompt, name2, storyString, worldIn
     // todo: static value, maybe include in the initial context calculation
     const handler_instance = new TokenHandler(countTokens);
 
-    let new_chat_msg = { "role": "system", "content": `[Start]` };
+    let new_chat_msg = { "role": "system", "content": `[Resume with this information established as factual common sense.]` };
     let start_chat_count = handler_instance.count([new_chat_msg], true, 'start_chat');
     await delay(1);
     let total_count = handler_instance.count([prompt_msg], true, 'prompt') + start_chat_count;
@@ -370,7 +370,7 @@ async function prepareOpenAIMessages({ systemPrompt, name2, storyString, worldIn
             names = groupMembers.map(member => characters.find(c => c.avatar === member)).filter(x => x).map(x => x.name);
             names = names.join(', ')
         }
-        new_chat_msg.content = `[Take all this information into consideration and continue this RP with ${names} who apply this information to conspire toward ${name1}'s surreptitious pleasure.]`;
+        new_chat_msg.content = `[Resume with this information established as factual common sense.]`;
         let group_nudge = { "role": "system", "content": `[Write the next reply only as ${name2}]` };
         //openai_msgs.push(group_nudge);
 
@@ -508,12 +508,12 @@ function getSystemPrompt(systemPrompt, nsfw_toggle_prompt, enhance_definitions_p
     let whole_prompt = [];
 
     if (isImpersonate) {
-        whole_prompt = [nsfw_toggle_prompt, enhance_definitions_prompt + "\n\n" + wiBefore, storyString, wiAfter, extensionPrompt];
+        whole_prompt = [nsfw_toggle_prompt, enhance_definitions_prompt + "\n" + wiBefore, storyString, wiAfter, extensionPrompt];
     }
     else {
         // If it's toggled, NSFW prompt goes first.
         if (oai_settings.nsfw_first) {
-            whole_prompt = [nsfw_toggle_prompt, prompt, enhance_definitions_prompt + "\n\n" + wiBefore, storyString, wiAfter, extensionPrompt];
+            whole_prompt = [nsfw_toggle_prompt, prompt, enhance_definitions_prompt + "\n" + wiBefore, storyString, wiAfter, extensionPrompt];
         }
         else {
             whole_prompt = [prompt, enhance_definitions_prompt, "\n", wiBefore, storyString, wiAfter, extensionPrompt].filter(elem => elem);
