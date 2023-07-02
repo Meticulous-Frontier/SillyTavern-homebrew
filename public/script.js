@@ -2767,7 +2767,7 @@ function adjustChatsSeparator(mesSendString) {
 
     // add non-pygma dingus
     else if (!is_pygmalion) {
-        mesSendString = '\nThen the roleplay chat between ' + name1 + ' and ' + name2 + ' begins.\n' + mesSendString;
+        mesSendString = mesSendString;
     }
 
     // add pygma <START>
