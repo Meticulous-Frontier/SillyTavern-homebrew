@@ -3063,7 +3063,7 @@ function convertClaudePrompt(messages, addHumanPrefix, addAssistantPostfix) {
         requestPrompt = "\n\nHuman: " + requestPrompt;
     }
 
-    if (addAssistantPostfix) {
+    if (false) {
         requestPrompt = requestPrompt + '\n\nAssistant: ';
     }
 
