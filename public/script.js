@@ -2490,6 +2490,7 @@ async function Generate(type, { automatic_trigger, force_name2, resolve, reject,
                     type: type,
                     quietPrompt: quiet_prompt,
                     jailbreakPrompt: jailbreakPrompt,
+                    cyclePrompt: cyclePrompt,
                 });
                 generate_data = { prompt: prompt };
 
@@ -6495,7 +6496,7 @@ $(document).ready(function () {
         updateVisibleDivs('#rm_print_characters_block', true);
     }, 5));
 
-    $("#chat").on('mousewheel', () => {
+    $("#chat").on('mousewheel touchstart', () => {
         scrollLock = true;
     });
 
