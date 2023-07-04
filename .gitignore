@@ -18,6 +18,7 @@ public/settings.json
 whitelist.txt
 .vscode
 secrets.json
+settings.json
 /dist
 poe_device.json
 /backups/
