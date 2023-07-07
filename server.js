@@ -4104,6 +4104,7 @@ async function downloadChubLorebook(id) {
     });
 
     if (!result.ok) {
+        console.log(await result.text());
         throw new Error('Failed to download lorebook');
     }
 
@@ -4146,7 +4147,14 @@ function parseChubUrl(str) {
         return null;
     }
 
-    const domainIndex = splitStr.indexOf('chub.ai');
+    let domainIndex = -1;
+
+    splitStr.forEach((part, index) => {
+        if (part === 'www.chub.ai' || part === 'chub.ai') {
+            domainIndex = index;
+        }
+    })
+
     const lastTwo = domainIndex !== -1 ? splitStr.slice(domainIndex + 1) : splitStr;
 
     const firstPart = lastTwo[0].toLowerCase();

@@ -435,6 +435,7 @@ const system_messages = {
             <li><tt>{​{char}​}</tt> - the Character's name</li>
             <li><tt>{​{time}​}</tt> - the current time</li>
             <li><tt>{​{date}​}</tt> - the current date</li>
+            <li><tt>{{idle_duration}}</tt> - the time since the last user message was sent</li>
             <li><tt>{{random:(args)}}</tt> - returns a random item from the list. (ex: {{random:1,2,3,4}} will return 1 of the 4 numbers at random. Works with text lists too.</li>
             </ul>`
         ]
@@ -756,7 +757,6 @@ $.get("/csrf-token").then(async (data) => {
 
 function checkOnlineStatus() {
     ///////// REMOVED LINES THAT DUPLICATE RA_CHeckOnlineStatus FEATURES
-
     if (online_status == "no_connection") {
         $("#online_status_indicator2").css("background-color", "red");  //Kobold
         $("#online_status_text2").html("No connection...");
@@ -1136,10 +1136,7 @@ function messageFormatting(mes, ch_name, isSystem, isUser) {
         mes = mes.replaceAll(substituteParams(power_user.user_prompt_bias), "");
     }
 
-    const regexResult = getRegexedString(mes, regex_placement.MD_DISPLAY);
-    if (regexResult) {
-        mes = regexResult;
-    }
+    mes = getRegexedString(mes, regex_placement.MD_DISPLAY);
 
     if (power_user.auto_fix_generated_markdown) {
         mes = fixMarkdown(mes);
@@ -1522,8 +1519,41 @@ function substituteParams(content, _name1, _name2, _original) {
     content = content.replace(/{{persona}}/gi, persona);
     content = content.replace(/{{time}}/gi, moment().format('LT'));
     content = content.replace(/{{date}}/gi, moment().format('LL'));
+    content = content.replace(/{{idle_duration}}/gi, () => getTimeSinceLastMessage());
     content = randomReplace(content);
     return content;
+}
+
+function getTimeSinceLastMessage() {
+    const now = moment();
+
+    if (Array.isArray(chat) && chat.length > 0) {
+        let lastMessage;
+        let takeNext = false;
+
+        for (let i = chat.length - 1; i >= 0; i--) {
+            const message = chat[i];
+
+            if (message.is_system) {
+                continue;
+            }
+
+            if (message.is_user && takeNext) {
+                lastMessage = message;
+                break;
+            }
+
+            takeNext = true;
+        }
+
+        if (lastMessage?.send_date) {
+            const lastMessageDate = timestampToMoment(lastMessage.send_date);
+            const duration = moment.duration(now.diff(lastMessageDate));
+            return duration.humanize();
+        }
+    }
+
+    return 'just now';
 }
 
 function randomReplace(input, emptyListPlaceholder = '') {
@@ -1645,7 +1675,7 @@ export function extractMessageBias(message) {
         return null;
     }
 
-    const forbiddenMatches = ['user', 'char', 'time', 'date', 'random'];
+    const forbiddenMatches = ['user', 'char', 'time', 'date', 'random', 'idle_duration'];
     const found = [];
     const rxp = /\{\{([\s\S]+?)\}\}/gm;
     //const rxp = /{([^}]+)}/g;
@@ -2928,10 +2958,7 @@ export function replaceBiasMarkup(str) {
 }
 
 export async function sendMessageAsUser(textareaText, messageBias) {
-    const regexResult = getRegexedString(textareaText, regex_placement.USER_INPUT);
-    if (regexResult) {
-        textareaText = regexResult;
-    }
+    textareaText = getRegexedString(textareaText, regex_placement.USER_INPUT);
 
     chat[chat.length] = {};
     chat[chat.length - 1]['name'] = name1;
@@ -3523,10 +3550,7 @@ function cleanUpMessage(getMessage, isImpersonate, displayIncompleteSentences = 
     }
 
     // Regex uses vars, so add before formatting
-    const regexResult = getRegexedString(getMessage, isImpersonate ? regex_placement.USER_INPUT : regex_placement.AI_OUTPUT);
-    if (regexResult) {
-        getMessage = regexResult;
-    }
+    getMessage = getRegexedString(getMessage, isImpersonate ? regex_placement.USER_INPUT : regex_placement.AI_OUTPUT);
 
     if (!displayIncompleteSentences && power_user.trim_sentences) {
         getMessage = end_trim_to_sentence(getMessage, power_user.include_newline);
@@ -4957,16 +4981,13 @@ function updateMessage(div) {
         regexPlacement = regex_placement.SYSTEM;
     }
 
-    const regexResult = getRegexedString(
+    text = getRegexedString(
         text,
         regexPlacement,
         {
             characterOverride: regexPlacement === regex_placement.SENDAS ? mes.name : undefined
         }
     );
-    if (regexResult) {
-        text = regexResult;
-    }
 
     if (power_user.trim_spaces) {
         text = text.trim();
@@ -6085,10 +6106,7 @@ async function createOrEditCharacter(e) {
                     ) {
                         // MARK - kingbri: Regex on character greeting message
                         // May need to be placed somewhere else
-                        const regexResult = getRegexedString(this_ch_mes, regex_placement.AI_OUTPUT);
-                        if (regexResult) {
-                            this_ch_mes = regexResult;
-                        }
+                        this_ch_mes = getRegexedString(this_ch_mes, regex_placement.AI_OUTPUT);
 
                         clearChat();
                         chat.length = 0;
@@ -6466,7 +6484,12 @@ const swipe_right = () => {
 }
 
 export function updateCharacterCount(characterSelector) {
-    const visibleCharacters = $(characterSelector).filter(":visible");
+    const visibleCharacters = $(characterSelector)
+        .not(".hiddenBySearch")
+        .not(".hiddenByTag")
+        .not(".hiddenByGroup")
+        .not(".hiddenByGroupMember")
+        .not(".hiddenByFav");
     const visibleCharacterCount = visibleCharacters.length;
     const totalCharacterCount = $(characterSelector).length;
 
@@ -7802,9 +7825,11 @@ $(document).ready(function () {
 
 
     $(document).on("click", ".mes_edit_delete", async function () {
-        const confirmation = await callPopup("Are you sure you want to delete this message?", 'confirm');
-        if (!confirmation) {
-            return;
+        if (power_user.confirm_message_delete) {
+            const confirmation = await callPopup("Are you sure you want to delete this message?", 'confirm');
+            if (!confirmation) {
+                return;
+            }
         }
 
         const mes = $(this).closest(".mes");
