@@ -356,7 +356,7 @@ async function prepareOpenAIMessages({ systemPrompt, name2, storyString, worldIn
     // todo: static value, maybe include in the initial context calculation
     const handler_instance = new TokenHandler(countTokens);
 
-    let new_chat_msg = {};
+    let new_chat_msg = { "role": "system", "content": "[START]" };
     let start_chat_count = handler_instance.count([new_chat_msg], true, 'start_chat');
     await delay(1);
     let total_count = handler_instance.count([prompt_msg], true, 'prompt') + start_chat_count;
